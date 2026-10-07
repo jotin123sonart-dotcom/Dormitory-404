@@ -1,0 +1,330 @@
+name: Build Dormitory 404 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check game files
+        run: |
+          echo "Project files:"
+          ls -la
+
+          test -f index.html || (
+            echo "ERROR: index.html not found!"
+            exit 1
+          )
+
+          test -f cover.jpg || (
+            echo "ERROR: cover.jpg not found!"
+            exit 1
+          )
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+
+      - name: Install Android packages
+        run: |
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
+
+      - name: Create Android project
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/java/com/dormitory404/game
+          mkdir -p app/src/main/res/values
+
+          cp index.html app/src/main/assets/index.html
+          cp cover.jpg app/src/main/assets/cover.jpg
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.name = "Dormitory404"
+          include(":app")
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.dormitory404.game'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.dormitory404.game'
+                  minSdk 23
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+
+              <application
+                  android:theme="@style/AppTheme"
+                  android:label="Dormitory 404"
+                  android:hardwareAccelerated="true"
+                  android:usesCleartextTraffic="true">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:screenOrientation="landscape"
+                      android:exported="true">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+
+                  </activity>
+
+              </application>
+
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+
+              <style name="AppTheme"
+                  parent="android:style/Theme.Material.Light.NoActionBar">
+
+                  <item name="android:windowFullscreen">true</item>
+                  <item name="android:windowActionModeOverlay">true</item>
+                  <item name="android:windowNoTitle">true</item>
+                  <item name="android:colorAccent">#B00020</item>
+
+              </style>
+
+          </resources>
+          EOF
+
+          cat > app/src/main/java/com/dormitory404/game/MainActivity.java <<'EOF'
+          package com.dormitory404.game;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+
+              private WebView webView;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  getWindow().getDecorView().setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                  );
+
+                  webView = new WebView(this);
+
+                  WebSettings settings = webView.getSettings();
+
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setDatabaseEnabled(true);
+                  settings.setAllowFileAccess(true);
+                  settings.setAllowContentAccess(true);
+                  settings.setMediaPlaybackRequiresUserGesture(false);
+
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+
+                  setContentView(webView);
+
+                  webView.loadUrl(
+                      "file:///android_asset/index_packed.html"
+                  );
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+          }
+          EOF
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          src = Path("index.html").read_text(
+              encoding="utf-8"
+          )
+
+          cover = '''
+          <style>
+          #d404Cover {
+              position: fixed;
+              inset: 0;
+              z-index: 2147483647;
+              background: #000;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+          }
+
+          #d404Cover img {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              display: block;
+          }
+
+          #d404Start {
+              position: absolute;
+              left: 50%;
+              bottom: 7vh;
+              transform: translateX(-50%);
+              min-width: 190px;
+              padding: 14px 28px;
+              border: 2px solid #fff;
+              border-radius: 14px;
+              background: rgba(0,0,0,.72);
+              color: #fff;
+              font-size: 20px;
+              font-weight: 700;
+          }
+
+          #d404Cover.hide {
+              display: none;
+          }
+          </style>
+
+          <div id="d404Cover">
+              <img src="cover.jpg" alt="Dormitory 404">
+
+              <button id="d404Start" type="button">
+                  เริ่มเกม
+              </button>
+          </div>
+          '''
+
+          script = '''
+          <script>
+          (() => {
+              const cover =
+                  document.getElementById("d404Cover");
+
+              const button =
+                  document.getElementById("d404Start");
+
+              button.addEventListener("click", () => {
+                  cover.classList.add("hide");
+              });
+          })();
+          </script>
+          '''
+
+          if "</head>" in src:
+              src = src.replace(
+                  "</head>",
+                  cover + "</head>",
+                  1
+              )
+          else:
+              src = cover + src
+
+          if "</body>" in src:
+              src = src.replace(
+                  "</body>",
+                  script + "</body>",
+                  1
+              )
+          else:
+              src += script
+
+          Path(
+              "app/src/main/assets/index_packed.html"
+          ).write_text(
+              src,
+              encoding="utf-8"
+          )
+          PY
+
+      - name: Create Gradle wrapper
+        run: |
+          gradle wrapper --gradle-version 8.9
+
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --stacktrace
+
+      - name: Check APK
+        run: |
+          ls -lh \
+            app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dormitory-404-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
