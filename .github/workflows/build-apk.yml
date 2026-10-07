@@ -12,34 +12,37 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Check game files
         run: |
-          echo "Project files:"
+          echo "Files in repository:"
           ls -la
 
-          test -f index.html || (
+          test -f index.html || {
             echo "ERROR: index.html not found!"
             exit 1
-          )
+          }
 
-          test -f "20261007_183847.jpg" || (
-            echo "ERROR: cover image not found!"
+          test -f "20261007_183847.jpg" || {
+            echo "ERROR: 20261007_183847.jpg not found!"
             exit 1
-          )
+          }
+
+          echo "Game files found!"
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: ''
+          packages: ""
 
       - name: Install Android packages
         run: |
@@ -47,6 +50,11 @@ jobs:
             "platform-tools" \
             "platforms;android-35" \
             "build-tools;35.0.0"
+
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
 
       - name: Create Android project
         shell: bash
@@ -56,11 +64,27 @@ jobs:
           mkdir -p app/src/main/assets
           mkdir -p app/src/main/java/com/dormitory404/game
           mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/drawable
 
-          cp index.html app/src/main/assets/index.html
+          echo "Copying game..."
+
+          cp index.html \
+            app/src/main/assets/index.html
+
+          echo "Copying cover..."
 
           cp "20261007_183847.jpg" \
-             app/src/main/assets/cover.jpg
+            app/src/main/assets/cover.jpg
+
+          echo "Creating game icon..."
+
+          convert "20261007_183847.jpg" \
+            -resize 512x512^ \
+            -gravity center \
+            -extent 512x512 \
+            app/src/main/res/drawable/game_icon.png
+
+          echo "Game icon created."
 
           cat > settings.gradle <<'EOF'
           pluginManagement {
@@ -73,6 +97,7 @@ jobs:
 
           dependencyResolutionManagement {
               repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+
               repositories {
                   google()
                   mavenCentral()
@@ -80,6 +105,7 @@ jobs:
           }
 
           rootProject.name = "Dormitory404"
+
           include(":app")
           EOF
 
@@ -96,26 +122,35 @@ jobs:
 
           android {
               namespace 'com.dormitory404.game'
+
               compileSdk 35
 
               defaultConfig {
                   applicationId 'com.dormitory404.game'
+
                   minSdk 23
+
                   targetSdk 35
+
                   versionCode 1
+
                   versionName '1.0'
               }
           }
           EOF
 
           cat > app/src/main/AndroidManifest.xml <<'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <manifest
+              xmlns:android="http://schemas.android.com/apk/res/android">
 
-              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission
+                  android:name="android.permission.INTERNET" />
 
               <application
                   android:theme="@style/AppTheme"
                   android:label="Dormitory 404"
+                  android:icon="@drawable/game_icon"
+                  android:roundIcon="@drawable/game_icon"
                   android:hardwareAccelerated="true"
                   android:usesCleartextTraffic="true">
 
@@ -125,8 +160,13 @@ jobs:
                       android:exported="true">
 
                       <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
+
+                          <action
+                              android:name="android.intent.action.MAIN" />
+
+                          <category
+                              android:name="android.intent.category.LAUNCHER" />
+
                       </intent-filter>
 
                   </activity>
@@ -139,13 +179,25 @@ jobs:
           cat > app/src/main/res/values/styles.xml <<'EOF'
           <resources>
 
-              <style name="AppTheme"
+              <style
+                  name="AppTheme"
                   parent="android:style/Theme.Material.Light.NoActionBar">
 
-                  <item name="android:windowFullscreen">true</item>
-                  <item name="android:windowActionModeOverlay">true</item>
-                  <item name="android:windowNoTitle">true</item>
-                  <item name="android:colorAccent">#B00020</item>
+                  <item name="android:windowFullscreen">
+                      true
+                  </item>
+
+                  <item name="android:windowActionModeOverlay">
+                      true
+                  </item>
+
+                  <item name="android:windowNoTitle">
+                      true
+                  </item>
+
+                  <item name="android:colorAccent">
+                      #B00020
+                  </item>
 
               </style>
 
@@ -170,28 +222,41 @@ jobs:
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
 
-                  getWindow().getDecorView().setSystemUiVisibility(
-                      View.SYSTEM_UI_FLAG_FULLSCREEN
-                      | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                      | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                      | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                  );
+                  getWindow()
+                      .getDecorView()
+                      .setSystemUiVisibility(
+                          View.SYSTEM_UI_FLAG_FULLSCREEN
+                          | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                          | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                          | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                          | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                          | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                      );
 
                   webView = new WebView(this);
 
-                  WebSettings settings = webView.getSettings();
+                  WebSettings settings =
+                      webView.getSettings();
 
                   settings.setJavaScriptEnabled(true);
+
                   settings.setDomStorageEnabled(true);
+
                   settings.setDatabaseEnabled(true);
+
                   settings.setAllowFileAccess(true);
+
                   settings.setAllowContentAccess(true);
+
                   settings.setMediaPlaybackRequiresUserGesture(false);
 
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                  webView.setWebViewClient(
+                      new WebViewClient()
+                  );
+
+                  webView.setOverScrollMode(
+                      View.OVER_SCROLL_NEVER
+                  );
 
                   setContentView(webView);
 
@@ -202,10 +267,15 @@ jobs:
 
               @Override
               public void onBackPressed() {
+
                   if (webView.canGoBack()) {
+
                       webView.goBack();
+
                   } else {
+
                       super.onBackPressed();
+
                   }
               }
           }
@@ -218,7 +288,7 @@ jobs:
               encoding="utf-8"
           )
 
-          cover = '''
+          cover = r'''
           <style>
           #d404Cover {
               position: fixed;
@@ -247,10 +317,11 @@ jobs:
               padding: 14px 28px;
               border: 2px solid #fff;
               border-radius: 14px;
-              background: rgba(0,0,0,.72);
+              background: rgba(0,0,0,.75);
               color: #fff;
               font-size: 20px;
               font-weight: 700;
+              z-index: 2;
           }
 
           #d404Cover.hide {
@@ -259,46 +330,75 @@ jobs:
           </style>
 
           <div id="d404Cover">
-              <img src="cover.jpg" alt="Dormitory 404">
 
-              <button id="d404Start" type="button">
+              <img
+                  src="cover.jpg"
+                  alt="Dormitory 404">
+
+              <button
+                  id="d404Start"
+                  type="button">
                   เริ่มเกม
               </button>
+
           </div>
           '''
 
-          script = '''
+          script = r'''
           <script>
           (() => {
+
               const cover =
-                  document.getElementById("d404Cover");
+                  document.getElementById(
+                      "d404Cover"
+                  );
 
               const button =
-                  document.getElementById("d404Start");
+                  document.getElementById(
+                      "d404Start"
+                  );
 
-              button.addEventListener("click", () => {
-                  cover.classList.add("hide");
-              });
+              if (button && cover) {
+
+                  button.addEventListener(
+                      "click",
+                      () => {
+
+                          cover.classList.add(
+                              "hide"
+                          );
+
+                      }
+                  );
+
+              }
+
           })();
           </script>
           '''
 
           if "</head>" in src:
+
               src = src.replace(
                   "</head>",
                   cover + "</head>",
                   1
               )
+
           else:
+
               src = cover + src
 
           if "</body>" in src:
+
               src = src.replace(
                   "</body>",
                   script + "</body>",
                   1
               )
+
           else:
+
               src += script
 
           Path(
@@ -307,6 +407,8 @@ jobs:
               src,
               encoding="utf-8"
           )
+
+          print("Game HTML prepared.")
           PY
 
       - name: Create Gradle wrapper
@@ -316,12 +418,15 @@ jobs:
       - name: Build APK
         run: |
           chmod +x gradlew
+
           ./gradlew assembleDebug \
             --no-daemon \
             --stacktrace
 
       - name: Check APK
         run: |
+          echo "APK created:"
+
           ls -lh \
             app/build/outputs/apk/debug/app-debug.apk
 
